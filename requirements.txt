@@ -1,0 +1,5 @@
+# pip3 install -r requirements.txt
+python-binance==1.0.15
+TA-Lib==0.4.21
+numpy==1.19.5
+websocket_client==1.2.1
