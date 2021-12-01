@@ -1,5 +1,4 @@
-import websocket, json, pprint, talib, numpy
-import config
+import websocket, json
 from binance.client import Client
 from binance.enums import *
 
@@ -11,7 +10,7 @@ closes = []
 in_position_to_buy = True
 last_buy_price = 0
 
-client = Client(config.API_KEY, config.API_SECRET)
+client = Client("$API_KEY", "$API_SECRET")
 
 def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
     try:
