@@ -1,22 +1,60 @@
-import websocket, json
+import websocket, json, math, config
 from binance.client import Client
 from binance.enums import *
+from decimal import Decimal
 
-SOCKET = "wss://stream.binance.com:9443/ws/bnbeur@kline_1m"
-TRADE_SYMBOL= 'BNBEUR'
-TRADE_QUANTITY = 1
 
-closes = []
+CURRENCY = 'LUNA'
+TRADE_CURRENCY = CURRENCY.lower() + 'busd'
+
+SOCKET = "wss://stream.binance.com:9443/ws/" + TRADE_CURRENCY + "@kline_1m"
+
 in_position_to_buy = True
 last_buy_price = 0
 
-client = Client("$API_KEY", "$API_SECRET")
+client = Client(config.API_KEY, config.API_SECRET )
 
-def order(side, quantity, symbol, order_type=ORDER_TYPE_MARKET):
+info = client.get_symbol_info(TRADE_CURRENCY)
+# print(info)
+
+# print(client.get_asset_balance(asset=CURRENCY))
+
+floor_value = Decimal(1 / Decimal(info['filters'][2]['minQty']))
+
+def buy(coin_price):
+    global last_buy_price
+
     try:
-        print("sending order")
-        order = client.create_order(symbol=symbol, side = side, type = order_type, quantity = quantity)
+        # Calculate how much $10 can buy
+        coin_qty = Decimal(10) / Decimal(coin_price)
+        buy_quantity = math.floor((coin_qty * floor_value)/floor_value)
+        print(buy_quantity)
+
+        print("sending buy order")
+        order = client.create_order(symbol=TRADE_CURRENCY.upper(), side = SIDE_BUY, type = ORDER_TYPE_MARKET, quantity = buy_quantity)
         print(order)
+        
+        # Calculate $ spent
+        myOrder = order['fills'][0]
+        last_buy_price = float(myOrder['qty'])
+    except Exception as e:
+        print(e)
+        return False
+
+    return True
+
+def sell():
+    global floor_value
+    global client
+
+    try:
+        sell_quantity = math.floor(Decimal(client.get_asset_balance(asset=CURRENCY)['free']) * floor_value)/floor_value
+        print(sell_quantity)
+
+        print("sending sell order")
+        order = client.create_order(symbol=TRADE_CURRENCY.upper(), side = SIDE_SELL, type = ORDER_TYPE_MARKET, quantity = sell_quantity)
+        print(order)
+
     except Exception as e:
         print(e)
         return False
@@ -45,24 +83,21 @@ def on_message(ws, message):
 
     if is_candle_closed:
         print("candle closed at {}".format(close))
-        closes.append(float(close))
-        print("closes")
-        print(closes)
 
         if in_position_to_buy:
             # buy
-            # order_succeeded = order(SIDE_BUY, TRADE_QUANTITY, TRADE_SYMBOL)
-            order_succeeded = True
-            print('buy!!!!')
+            coin_price = float(close)
+            print("buy at {}".format(coin_price))
+            order_succeeded = buy(coin_price)
             if order_succeeded:
                 in_position_to_buy = False
                 last_buy_price = close
 
         else:
-            if close >= last_buy_price * 0.05 + last_buy_price:
+            print("trying to sell higher than {}".format(last_buy_price * 0.05 + last_buy_price))
+            if float(close) >= last_buy_price * 0.05 + last_buy_price:
                 # sell
-                # order_succeeded = order(SIDE_SELL, TRADE_QUANTITY, TRADE_SYMBOL)
-                order_succeeded = True
+                order_succeeded = sell()
                 print("Sell !!!!")
                 if order_succeeded:
                     in_position_to_buy = True
